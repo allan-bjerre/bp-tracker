@@ -684,12 +684,21 @@
 
                     <div style="text-align: center; margin-top: 1rem;">
                         <input type="file" id="cameraInput" accept="image/*" capture="camera" style="display: none;">
+                        <input type="file" id="albumInput" accept="image/*" style="display: none;">
                         <button class="btn btn-primary" onclick="document.getElementById('cameraInput').click()">
                             <svg style="width: 1rem; height: 1rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                                 <circle cx="12" cy="13" r="4"/>
                             </svg>
                             Tag Billede
+                        </button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('albumInput').click()" style="margin-left: 0.5rem;">
+                            <svg style="width: 1rem; height: 1rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <circle cx="8.5" cy="8.5" r="1.5"/>
+                                <polyline points="21,15 16,10 5,21"/>
+                            </svg>
+                            Vælg fra Album
                         </button>
                         <button class="btn btn-success hidden" id="processBtn" onclick="processImage()">
                             <svg style="width: 1rem; height: 1rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -718,23 +727,23 @@
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="form-label" for="systolic">Systolisk (øverste) *</label>
-                            <input class="form-input" type="number" id="systolic" min="70" max="250" placeholder="120" required>
+                            <input class="form-input" type="number" id="systolic" name="systolic" min="70" max="250" placeholder="120" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="diastolic">Diastolisk (nederste) *</label>
-                            <input class="form-input" type="number" id="diastolic" min="40" max="150" placeholder="80" required>
+                            <input class="form-input" type="number" id="diastolic" name="diastolic" min="40" max="150" placeholder="80" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="pulse">Puls</label>
-                            <input class="form-input" type="number" id="pulse" min="40" max="200" placeholder="70">
+                            <input class="form-input" type="number" id="pulse" name="pulse" min="40" max="200" placeholder="70">
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="datetime">Tidspunkt *</label>
-                            <input class="form-input" type="datetime-local" id="datetime" required>
+                            <input class="form-input" type="datetime-local" id="datetime" name="datetime" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="timeOfDay">Tidspunkt på dagen</label>
-                            <select class="form-select" id="timeOfDay">
+                            <select class="form-select" id="timeOfDay" name="timeOfDay">
                                 <option value="morning">Morgen (6-12)</option>
                                 <option value="afternoon">Eftermiddag (12-18)</option>
                                 <option value="evening">Aften (18-24)</option>
@@ -743,7 +752,7 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="situation">Situation</label>
-                            <select class="form-select" id="situation">
+                            <select class="form-select" id="situation" name="situation">
                                 <option value="resting">Hvilende</option>
                                 <option value="after_exercise">Efter træning</option>
                                 <option value="stressed">Stresset</option>
@@ -921,7 +930,10 @@
         }
 
         // Camera Input Handler
-        document.getElementById('cameraInput').addEventListener('change', function(e) {
+        document.getElementById('cameraInput').addEventListener('change', handleImageSelect);
+        document.getElementById('albumInput').addEventListener('change', handleImageSelect);
+
+        function handleImageSelect(e) {
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
@@ -932,7 +944,7 @@
                 };
                 reader.readAsDataURL(file);
             }
-        });
+        }
 
         // Enhanced OCR Processing with Anthropic Claude API
         async function processImage() {
@@ -1055,16 +1067,16 @@
         document.getElementById('manualForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const formData = new FormData(e.target);
-            const systolic = parseInt(formData.get('systolic'));
-            const diastolic = parseInt(formData.get('diastolic'));
-            const pulse = formData.get('pulse') ? parseInt(formData.get('pulse')) : null;
-            const datetime = formData.get('datetime');
-            const timeOfDay = formData.get('timeOfDay');
-            const situation = formData.get('situation');
+            const systolic = parseInt(document.getElementById('systolic').value);
+            const diastolic = parseInt(document.getElementById('diastolic').value);
+            const pulseVal = document.getElementById('pulse').value;
+            const pulse = pulseVal ? parseInt(pulseVal) : null;
+            const datetime = document.getElementById('datetime').value;
+            const timeOfDay = document.getElementById('timeOfDay').value;
+            const situation = document.getElementById('situation').value;
 
             if (!systolic || !diastolic || !datetime) {
-                alert('Udfyld venligst alle påkrævede felter');
+                alert('Udfyld venligst systolisk, diastolisk og tidspunkt');
                 return;
             }
 
