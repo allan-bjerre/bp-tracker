@@ -82,6 +82,7 @@
         @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
         input[type="file"]{display:none}
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -97,6 +98,8 @@
         <div class="card card-glow" id="latestCard"></div>
         <div class="section-label">Denne uge</div>
         <div class="stats-grid" id="weekStats"></div>
+        <div class="section-label" style="margin-top:1rem">Udvikling</div>
+        <div class="card" id="chartCard" style="display:none"><canvas id="bpChart"></canvas></div>
     </div>
 
     <!-- NY MÅLING -->
@@ -109,6 +112,7 @@
             </div>
             <input type="file" id="cameraInput" accept="image/*" capture="environment">
             <input type="file" id="albumInput" accept="image/*">
+            <input type="file" id="importInput" accept=".json,application/json">
             <div class="capture-btns">
                 <button class="btn btn-primary" onclick="document.getElementById('cameraInput').click()">📷 Kamera</button>
                 <button class="btn btn-secondary" onclick="document.getElementById('albumInput').click()">🖼️ Album</button>
@@ -160,6 +164,7 @@
 // === STATE ===
 var readings = JSON.parse(localStorage.getItem('bpReadings') || '[]');
 var hasImg = false;
+var bpChart = null;
 
 // === INIT ===
 (function(){
@@ -182,7 +187,7 @@ function resetForm(){
     a.innerHTML='<div class="capture-icon">📷</div><p class="capture-text"><strong>Tag billede eller vælg fra album</strong><br>Indtast derefter værdierne nedenfor</p>';
 }
 
-function refresh(){ updateOverview(); showHistory(); }
+function refresh(){ updateOverview(); updateChart(); showHistory(); }
 
 // === NAV ===
 function go(name,el){
@@ -197,6 +202,7 @@ function go(name,el){
 // === IMAGE ===
 document.getElementById('cameraInput').addEventListener('change',onImg);
 document.getElementById('albumInput').addEventListener('change',onImg);
+document.getElementById('importInput').addEventListener('change',importJSON);
 function onImg(e){
     var file=e.target.files[0]; if(!file)return;
     var reader=new FileReader();
@@ -374,12 +380,64 @@ function showReport(){
         +'<ul class="rec-list">'+recs.map(function(r){return'<li>'+r+'</li>';}).join('')+'</ul>'
         +'</div>'
         +'<div class="disclaimer"><strong>⚠️ Vigtig:</strong> Denne rapport er et supplement til lægebehandling, ikke en erstatning. Drøft alle ændringer med din læge.</div>'
-        +'<div class="export-btns"><button class="btn btn-primary" onclick="exportJSON()">📤 Eksporter</button><button class="btn btn-secondary" onclick="window.print()">🖨️ Print</button></div>';
+        +'<div class="export-btns"><button class="btn btn-primary" onclick="exportJSON()">📤 Eksporter</button><button class="btn btn-secondary" onclick="document.getElementById(\'importInput\').click()">📥 Importér</button><button class="btn btn-secondary" onclick="window.print()">🖨️ Print</button></div>';
+}
+
+// === CHART ===
+function updateChart(){
+    var card=document.getElementById('chartCard');
+    if(!readings.length||typeof Chart==='undefined'){card.style.display='none';return;}
+    card.style.display='block';
+    var data=readings.slice(0,30).reverse();
+    var labels=data.map(function(r){var d=new Date(r.datetime);return d.toLocaleDateString('da-DK',{day:'numeric',month:'short'});});
+    var sysData=data.map(function(r){return r.systolic;});
+    var diaData=data.map(function(r){return r.diastolic;});
+    var pulseData=data.map(function(r){return r.pulse;});
+    if(bpChart){bpChart.destroy();}
+    bpChart=new Chart(document.getElementById('bpChart'),{
+        type:'line',
+        data:{labels:labels,datasets:[
+            {label:'Systolisk',data:sysData,borderColor:'#f87171',backgroundColor:'rgba(248,113,113,0.08)',tension:0.3,fill:true,pointRadius:3,borderWidth:2},
+            {label:'Diastolisk',data:diaData,borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.08)',tension:0.3,fill:true,pointRadius:3,borderWidth:2},
+            {label:'Puls',data:pulseData,borderColor:'#34d399',backgroundColor:'rgba(52,211,153,0.05)',tension:0.3,fill:false,pointRadius:2,borderWidth:1.5,borderDash:[5,5]}
+        ]},
+        options:{responsive:true,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#94a3b8',font:{family:'Plus Jakarta Sans',size:11},usePointStyle:true,pointStyle:'circle'}}},scales:{x:{ticks:{color:'#64748b',font:{size:9},maxRotation:45},grid:{color:'rgba(148,163,184,0.06)'}},y:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(148,163,184,0.08)'}}}}
+    });
+}
+
+// === IMPORT ===
+function importJSON(e){
+    var file=e.target.files[0];if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+        try{
+            var json=JSON.parse(ev.target.result);
+            var imported=Array.isArray(json)?json:(json.data||[]);
+            if(!imported.length){toast('⚠️ Ingen målinger fundet i filen','warn');return;}
+            var existingIds={};
+            readings.forEach(function(r){existingIds[r.id]=true;});
+            var added=0;
+            imported.forEach(function(r){
+                if(r.systolic&&r.diastolic&&!existingIds[r.id]){
+                    if(!r.id)r.id=Date.now()+Math.random();
+                    if(!r.status)r.status=cat(r.systolic,r.diastolic);
+                    readings.push(r);
+                    added++;
+                }
+            });
+            readings.sort(function(a,b){return new Date(b.datetime)-new Date(a.datetime);});
+            localStorage.setItem('bpReadings',JSON.stringify(readings));
+            refresh();
+            toast('✅ '+added+' målinger importeret!');
+        }catch(err){toast('⚠️ Ugyldig fil','warn');}
+    };
+    reader.readAsText(file);
+    e.target.value='';
 }
 
 function exportJSON(){
     if(!readings.length)return;
-    var blob=new Blob([JSON.stringify({genereret:new Date().toISOString(),antal:readings.length,data:readings.slice(0,50)},null,2)],{type:'application/json'});
+    var blob=new Blob([JSON.stringify({genereret:new Date().toISOString(),antal:readings.length,data:readings},null,2)],{type:'application/json'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);
     a.download='bp-rapport-'+new Date().toISOString().split('T')[0]+'.json';
     a.click();URL.revokeObjectURL(a.href);
